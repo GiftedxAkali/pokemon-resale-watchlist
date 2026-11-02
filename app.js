@@ -2,12 +2,96 @@ const $ = s => document.querySelector(s);
 const money = n => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(Number(n)||0);
 const pct = n => `${Math.round((Number(n)||0)*100)}%`;
 let DATA=[], STATE={price:'all'};
+const IMAGE_CACHE_KEY='pokemonImageFallbackCacheV1';
+const imageCache=JSON.parse(localStorage.getItem(IMAGE_CACHE_KEY)||'{}');
 
 function parsePriceBand(s){
   if(s==='all') return [0,Infinity];
   return s.split('-').map(Number);
 }
 function validImage(url){ return typeof url==='string' && /^https:\/\/.+/i.test(url); }
+function localId(number){ return String(number||'').split('/')[0].trim(); }
+function norm(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,''); }
+function imageKey(c){ return `${norm(c.card)}|${norm(c.set)}|${norm(localId(c.number))}`; }
+function pokemonTcgSmall(url){
+  if(!validImage(url)) return '';
+  return url.replace(/_hires(?=\.png$)/i,'');
+}
+function setScore(a,b){
+  const x=norm(a), y=norm(b);
+  if(!x||!y) return 0;
+  if(x===y) return 100;
+  if(x.includes(y)||y.includes(x)) return 60;
+  const words=String(a).toLowerCase().split(/[^a-z0-9]+/).filter(w=>w.length>2);
+  return words.reduce((s,w)=>s+(String(b).toLowerCase().includes(w)?10:0),0);
+}
+
+async function resolveTcgdexImage(c){
+  const key=imageKey(c);
+  if(key in imageCache) return imageCache[key];
+  try{
+    const name=encodeURIComponent(`eq:${c.card}`);
+    const id=encodeURIComponent(`eq:${localId(c.number)}`);
+    let r=await fetch(`https://api.tcgdex.net/v2/en/cards?name=${name}&localId=${id}`);
+    if(!r.ok) throw new Error(`TCGdex ${r.status}`);
+    let list=await r.json();
+    if(!Array.isArray(list)||!list.length){
+      r=await fetch(`https://api.tcgdex.net/v2/en/cards?name=${encodeURIComponent(c.card)}&localId=${id}`);
+      if(!r.ok) throw new Error(`TCGdex ${r.status}`);
+      list=await r.json();
+    }
+    if(!Array.isArray(list)||!list.length){ imageCache[key]=''; localStorage.setItem(IMAGE_CACHE_KEY,JSON.stringify(imageCache)); return ''; }
+    let best=null, bestScore=-1;
+    const shortlist=list.slice(0,12);
+    for(const brief of shortlist){
+      try{
+        const detailResp=await fetch(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(brief.id)}`);
+        if(!detailResp.ok) continue;
+        const detail=await detailResp.json();
+        const score=(norm(detail.name)===norm(c.card)?50:0)+(norm(detail.localId)===norm(localId(c.number))?50:0)+setScore(detail.set?.name,c.set);
+        if(detail.image && score>bestScore){ bestScore=score; best=detail; }
+      }catch{}
+    }
+    const out=best?.image ? `${best.image}/low.webp` : (list[0]?.image ? `${list[0].image}/low.webp` : '');
+    imageCache[key]=out;
+    localStorage.setItem(IMAGE_CACHE_KEY,JSON.stringify(imageCache));
+    return out;
+  }catch(err){
+    console.debug('TCGdex image lookup failed',c.card,c.number,err);
+    return '';
+  }
+}
+
+async function hydrateImage(img,ph,link,c){
+  img.alt=`${c.card} ${c.number}`;
+  const candidates=[];
+  const small=pokemonTcgSmall(c.image);
+  if(validImage(small)) candidates.push(small);
+  if(validImage(c.image) && c.image!==small) candidates.push(c.image);
+  const cached=imageCache[imageKey(c)];
+  if(validImage(cached)) candidates.push(cached);
+
+  const tryCandidate=(url)=>new Promise(resolve=>{
+    const probe=new Image();
+    probe.decoding='async';
+    probe.onload=()=>resolve(url);
+    probe.onerror=()=>resolve('');
+    probe.src=url;
+  });
+
+  for(const url of [...new Set(candidates)]){
+    const ok=await tryCandidate(url);
+    if(ok){ img.src=ok; img.style.display='block'; ph.classList.remove('visible'); link.href=ok; link.style.display='inline'; return; }
+  }
+
+  const fallback=await resolveTcgdexImage(c);
+  if(fallback){
+    const ok=await tryCandidate(fallback);
+    if(ok){ img.src=ok; img.style.display='block'; ph.classList.remove('visible'); link.href=ok; link.style.display='inline'; return; }
+  }
+
+  img.style.display='none'; ph.classList.add('visible'); link.style.display='none';
+}
 
 async function loadData(force=false){
   const url=(window.APP_CONFIG?.liveDataUrl||'./data.json') + (force?`?t=${Date.now()}`:'');
@@ -62,6 +146,7 @@ function render(){
   const arr=filtered(), grid=$('#grid'), tpl=$('#cardTemplate');
   grid.innerHTML=''; renderSummary(arr); $('#empty').hidden=arr.length>0;
   const frag=document.createDocumentFragment();
+  const pending=[];
   for(const c of arr){
     const node=tpl.content.firstElementChild.cloneNode(true);
     node.querySelector('.rank').textContent=`#${c.rank}`;
@@ -73,16 +158,15 @@ function render(){
     node.querySelector('.resale').textContent=money(c.resale);
     node.querySelector('.margin').textContent=`Margin ${money(c.margin)}`;
     const img=node.querySelector('.cardimg'), ph=node.querySelector('.placeholder'), link=node.querySelector('.imageLink');
-    if(validImage(c.image)){
-      img.src=c.image; img.alt=`${c.card} ${c.number}`;
-      img.onerror=()=>{img.style.display='none';ph.classList.add('visible');link.style.display='none'};
-      link.href=c.image;
-    }else{
-      img.style.display='none'; ph.classList.add('visible'); link.style.display='none';
-    }
+    img.style.display='none'; ph.classList.add('visible'); link.style.display='none';
+    pending.push([img,ph,link,c]);
     frag.appendChild(node);
   }
   grid.appendChild(frag);
+  let i=0;
+  const workers=Math.min(6,pending.length);
+  const run=async()=>{ while(i<pending.length){ const item=pending[i++]; await hydrateImage(...item); } };
+  for(let w=0;w<workers;w++) run();
 }
 $('#search').addEventListener('input',render);
 $('#topN').addEventListener('change',render);
