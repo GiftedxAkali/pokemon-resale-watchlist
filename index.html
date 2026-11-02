@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b1220">
+  <meta name="description" content="Live Pokémon card acquisition watchlist for resale inventory.">
+  <title>Pokémon Resale Watchlist</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div>
+      <h1>Pokémon Resale Watchlist</h1>
+      <p id="updated">Loading latest data…</p>
+    </div>
+    <button id="refreshBtn" class="ghost">Refresh</button>
+  </div>
+  <div class="toolbar">
+    <input id="search" type="search" placeholder="Search card, set, or number…" autocomplete="off">
+    <select id="topN" aria-label="Rank limit">
+      <option value="25">Top 25</option>
+      <option value="50">Top 50</option>
+      <option value="100" selected>Top 100</option>
+    </select>
+    <select id="sort" aria-label="Sort">
+      <option value="rank">Rank</option>
+      <option value="roc">Return on cost</option>
+      <option value="margin">Gross margin</option>
+      <option value="marketAsc">Market low → high</option>
+      <option value="marketDesc">Market high → low</option>
+    </select>
+  </div>
+  <div class="chips">
+    <button class="chip active" data-price="all">All prices</button>
+    <button class="chip" data-price="5-25">$5–25</button>
+    <button class="chip" data-price="25-75">$25–75</button>
+    <button class="chip" data-price="75-200">$75–200</button>
+    <button class="chip" data-price="200-500">$200–500</button>
+  </div>
+</header>
+<main>
+  <section id="summary" class="summary"></section>
+  <section id="grid" class="grid" aria-live="polite"></section>
+  <div id="empty" class="empty" hidden>No cards match those filters.</div>
+</main>
+<template id="cardTemplate">
+  <article class="card">
+    <div class="imgwrap">
+      <span class="rank"></span>
+      <img class="cardimg" loading="lazy" decoding="async" alt="">
+      <div class="placeholder"><div class="pokeball">◉</div><span>Image not yet verified</span></div>
+    </div>
+    <div class="body">
+      <div class="nameRow"><h2></h2><span class="rocBadge"></span></div>
+      <p class="meta"></p>
+      <div class="prices">
+        <div><span>Market</span><b class="market"></b></div>
+        <div class="buyBox"><span>Target buy</span><b class="buy"></b></div>
+        <div><span>Resale</span><b class="resale"></b></div>
+      </div>
+      <div class="footer"><span class="margin"></span><a class="imageLink" target="_blank" rel="noopener noreferrer">Open image</a></div>
+    </div>
+  </article>
+</template>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
