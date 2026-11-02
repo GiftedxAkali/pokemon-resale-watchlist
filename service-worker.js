@@ -1,4 +1,4 @@
-const CACHE='pokemon-watchlist-v2';
+const CACHE='pokemon-watchlist-v3';
 const SHELL=['./','./index.html','./styles.css','./app.js','./config.js','./manifest.webmanifest'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)));});
 self.addEventListener('activate',e=>e.waitUntil(Promise.all([
