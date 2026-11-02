@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#0b1220">
   <meta name="description" content="Live Pokémon card acquisition watchlist for resale inventory.">
   <title>Pokémon Resale Watchlist</title>
-  <link rel="manifest" href="manifest.webmanifest?v=6">
-  <link rel="stylesheet" href="styles.css?v=6">
+  <link rel="manifest" href="manifest.webmanifest?v=7">
+  <link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
 <header class="topbar">
@@ -20,26 +20,10 @@
   </div>
   <div class="toolbar">
     <input id="search" type="search" placeholder="Search card, set, or number…" autocomplete="off">
-    <select id="topN" aria-label="Rank limit">
-      <option value="25">Top 25</option>
-      <option value="50">Top 50</option>
-      <option value="100" selected>Top 100</option>
-    </select>
-    <select id="sort" aria-label="Sort">
-      <option value="rank">Rank</option>
-      <option value="roc">Return on cost</option>
-      <option value="margin">Gross margin</option>
-      <option value="marketAsc">Market low → high</option>
-      <option value="marketDesc">Market high → low</option>
-    </select>
+    <select id="topN" aria-label="Rank limit"><option value="25">Top 25</option><option value="50">Top 50</option><option value="100" selected>Top 100</option></select>
+    <select id="sort" aria-label="Sort"><option value="rank">Rank</option><option value="roc">Return on cost</option><option value="margin">Gross margin</option><option value="marketAsc">Market low → high</option><option value="marketDesc">Market high → low</option></select>
   </div>
-  <div class="chips">
-    <button class="chip active" data-price="all">All prices</button>
-    <button class="chip" data-price="5-25">$5–25</button>
-    <button class="chip" data-price="25-75">$25–75</button>
-    <button class="chip" data-price="75-200">$75–200</button>
-    <button class="chip" data-price="200-500">$200–500</button>
-  </div>
+  <div class="chips"><button class="chip active" data-price="all">All prices</button><button class="chip" data-price="5-25">$5–25</button><button class="chip" data-price="25-75">$25–75</button><button class="chip" data-price="75-200">$75–200</button><button class="chip" data-price="200-500">$200–500</button></div>
 </header>
 <main>
   <section id="summary" class="summary"></section>
@@ -48,24 +32,15 @@
 </main>
 <template id="cardTemplate">
   <article class="card">
-    <div class="imgwrap">
-      <span class="rank"></span>
-      <img class="cardimg" loading="lazy" decoding="async" alt="">
-      <div class="placeholder"><div class="pokeball">◉</div><span>Image not yet verified</span></div>
-    </div>
+    <div class="imgwrap"><span class="rank"></span><img class="cardimg" loading="lazy" decoding="async" alt=""><div class="placeholder"><div class="pokeball">◉</div><span>Image not yet verified</span></div></div>
     <div class="body">
-      <div class="nameRow"><h2></h2><span class="rocBadge"></span></div>
-      <p class="meta"></p>
-      <div class="prices">
-        <div><span>Market</span><b class="market"></b></div>
-        <div class="buyBox"><span>Target buy</span><b class="buy"></b></div>
-        <div><span>Resale</span><b class="resale"></b></div>
-      </div>
+      <div class="nameRow"><h2></h2><span class="rocBadge"></span></div><p class="meta"></p>
+      <div class="prices"><div><span>Market</span><b class="market"></b></div><div class="buyBox"><span>Target buy</span><b class="buy"></b></div><div><span>Resale</span><b class="resale"></b></div></div>
       <div class="footer"><span class="margin"></span><a class="imageLink" target="_blank" rel="noopener noreferrer">Open image</a></div>
     </div>
   </article>
 </template>
-<script src="config.js?v=6"></script>
-<script src="app.js?v=6"></script>
+<script src="config.js?v=7"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>
