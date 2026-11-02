@@ -62,31 +62,39 @@ function showDataTimes(ts,cached=false,checkedNow=false){
 async function loadData(force=false){
   const base=(window.APP_CONFIG?.liveDataUrl||'./data.json');
   const url=base+(force?`${base.includes('?')?'&':'?'}t=${Date.now()}`:'');
-  const r=await fetch(url,{cache:force?'no-store':'default',headers:force?{'Cache-Control':'no-cache'}:{}});
+  const r=await fetch(url,{cache:force?'no-store':'default'});
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
-  const json=await r.json(); DATA=json.cards||[]; localStorage.setItem('pokemonWatchlistCache',JSON.stringify(json));
-  showDataTimes(json.updatedAt,false,force); render(force); return json;
+  const json=await r.json();
+  if(!Array.isArray(json.cards)) throw new Error('Invalid cards dataset');
+  DATA=json.cards;
+  localStorage.setItem('pokemonWatchlistCache',JSON.stringify(json));
+  showDataTimes(json.updatedAt,false,force);
+  render(force);
+  return json;
 }
 
 function filtered(){
   const q=$('#search').value.trim().toLowerCase(), top=Number($('#topN').value)||100, [lo,hi]=parsePriceBand(STATE.price);
-  let arr=DATA.filter(c=>c.rank<=top&&c.market>=lo&&c.market<=(hi===500?500:hi)&&(!q||`${c.card} ${c.set} ${c.number} ${c.rank}`.toLowerCase().includes(q)));
+  let arr=DATA.filter(c=>Number(c.rank)<=top&&Number(c.market)>=lo&&Number(c.market)<=(hi===500?500:hi)&&(!q||`${c.card} ${c.set} ${c.number} ${c.rank}`.toLowerCase().includes(q)));
   const sort=$('#sort').value;
-  arr.sort((a,b)=>sort==='roc'?b.returnOnCost-a.returnOnCost:sort==='margin'?b.margin-a.margin:sort==='marketAsc'?a.market-b.market:sort==='marketDesc'?b.market-a.market:a.rank-b.rank);
+  arr.sort((a,b)=>sort==='roc'?Number(b.returnOnCost)-Number(a.returnOnCost):sort==='margin'?Number(b.margin)-Number(a.margin):sort==='marketAsc'?Number(a.market)-Number(b.market):sort==='marketDesc'?Number(b.market)-Number(a.market):Number(a.rank)-Number(b.rank));
   return arr;
 }
 function renderSummary(arr){
-  const avg=arr.length?arr.reduce((s,c)=>s+c.returnOnCost,0)/arr.length:0,buy=arr.reduce((s,c)=>s+c.buy,0),resale=arr.reduce((s,c)=>s+c.resale,0);
+  const avg=arr.length?arr.reduce((s,c)=>s+Number(c.returnOnCost||0),0)/arr.length:0,buy=arr.reduce((s,c)=>s+Number(c.buy||0),0),resale=arr.reduce((s,c)=>s+Number(c.resale||0),0);
   $('#summary').innerHTML=`<div class="stat"><span>Cards shown</span><b>${arr.length}</b></div><div class="stat"><span>Total target buy</span><b>${money(buy)}</b></div><div class="stat"><span>Total target resale</span><b>${money(resale)}</b></div><div class="stat"><span>Avg. return on cost</span><b>${pct(avg)}</b></div>`;
 }
 function render(forceImages=false){
-  const arr=filtered(),grid=$('#grid'),tpl=$('#cardTemplate'); grid.innerHTML=''; renderSummary(arr); $('#empty').hidden=arr.length>0;
+  const arr=filtered(),grid=$('#grid'),tpl=$('#cardTemplate');
+  grid.innerHTML=''; renderSummary(arr); $('#empty').hidden=arr.length>0;
   const frag=document.createDocumentFragment(),pending=[];
   for(const c of arr){
-    const node=tpl.content.firstElementChild.cloneNode(true); node.querySelector('.rank').textContent=`#${c.rank}`; node.querySelector('h2').textContent=c.card; node.querySelector('.meta').textContent=`${c.set} · ${c.number}`; node.querySelector('.rocBadge').textContent=`${pct(c.returnOnCost)} ROC`; node.querySelector('.market').textContent=money(c.market); node.querySelector('.buy').textContent=money(c.buy); node.querySelector('.resale').textContent=money(c.resale); node.querySelector('.margin').textContent=`Margin ${money(c.margin)}`;
+    const node=tpl.content.firstElementChild.cloneNode(true);
+    node.querySelector('.rank').textContent=`#${c.rank}`; node.querySelector('h2').textContent=c.card; node.querySelector('.meta').textContent=`${c.set} · ${c.number}`; node.querySelector('.rocBadge').textContent=`${pct(c.returnOnCost)} ROC`; node.querySelector('.market').textContent=money(c.market); node.querySelector('.buy').textContent=money(c.buy); node.querySelector('.resale').textContent=money(c.resale); node.querySelector('.margin').textContent=`Margin ${money(c.margin)}`;
     const img=node.querySelector('.cardimg'),ph=node.querySelector('.placeholder'),link=node.querySelector('.imageLink'); img.style.display='none'; ph.classList.add('visible'); link.style.display='none'; pending.push([img,ph,link,c,forceImages]); frag.appendChild(node);
   }
-  grid.appendChild(frag); let i=0; const workers=Math.min(6,pending.length); const run=async()=>{while(i<pending.length){await hydrateImage(...pending[i++]);}}; for(let w=0;w<workers;w++) run();
+  grid.appendChild(frag);
+  let i=0; const workers=Math.min(6,pending.length); const run=async()=>{while(i<pending.length){await hydrateImage(...pending[i++]);}}; for(let w=0;w<workers;w++) run();
 }
 
 async function refreshAll(){
@@ -96,7 +104,7 @@ async function refreshAll(){
     btn.textContent='Checked ✓'; setTimeout(()=>{btn.textContent=oldText;btn.disabled=false;},1200);
   }catch(err){
     console.error(err); const cached=localStorage.getItem('pokemonWatchlistCache');
-    if(cached){ const json=JSON.parse(cached); DATA=json.cards||[]; showDataTimes(json.updatedAt,true,true); render(); }
+    if(cached){ const json=JSON.parse(cached); DATA=Array.isArray(json.cards)?json.cards:[]; showDataTimes(json.updatedAt,true,true); render(); }
     else { $('#dataUpdated').textContent='Market data unavailable'; $('#lastChecked').textContent=` · Last checked: ${new Date().toLocaleTimeString()}`; }
     btn.textContent='Retry'; btn.disabled=false;
   }
@@ -106,5 +114,20 @@ $('#search').addEventListener('input',()=>render()); $('#topN').addEventListener
 document.querySelectorAll('.chip').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.chip').forEach(b=>b.classList.remove('active'));btn.classList.add('active');STATE.price=btn.dataset.price;render();}));
 $('#refreshBtn').addEventListener('click',refreshAll);
 
-loadData().catch(err=>{ const cached=localStorage.getItem('pokemonWatchlistCache'); if(cached){const json=JSON.parse(cached);DATA=json.cards||[];showDataTimes(json.updatedAt,true,false);render();}else{ $('#dataUpdated').textContent='Could not load market data'; console.error(err); } });
-if('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+(async()=>{
+  try{
+    if('serviceWorker' in navigator){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r=>r.unregister()));
+    }
+    if('caches' in window){
+      const keys=await caches.keys();
+      await Promise.all(keys.filter(k=>k.startsWith('pokemon-watchlist-')).map(k=>caches.delete(k)));
+    }
+  }catch{}
+  loadData().catch(err=>{
+    const cached=localStorage.getItem('pokemonWatchlistCache');
+    if(cached){ const json=JSON.parse(cached); DATA=Array.isArray(json.cards)?json.cards:[]; showDataTimes(json.updatedAt,true,false); render(); }
+    else { $('#dataUpdated').textContent='Could not load market data'; console.error(err); }
+  });
+})();
