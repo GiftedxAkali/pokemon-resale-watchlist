@@ -26,17 +26,17 @@ function setScore(a,b){
   return words.reduce((s,w)=>s+(String(b).toLowerCase().includes(w)?10:0),0);
 }
 
-async function resolveTcgdexImage(c){
+async function resolveTcgdexImage(c, force=false){
   const key=imageKey(c);
-  if(key in imageCache) return imageCache[key];
+  if(!force && key in imageCache) return imageCache[key];
   try{
     const name=encodeURIComponent(`eq:${c.card}`);
     const id=encodeURIComponent(`eq:${localId(c.number)}`);
-    let r=await fetch(`https://api.tcgdex.net/v2/en/cards?name=${name}&localId=${id}`);
+    let r=await fetch(`https://api.tcgdex.net/v2/en/cards?name=${name}&localId=${id}${force?`&_=${Date.now()}`:''}`,{cache:force?'no-store':'default'});
     if(!r.ok) throw new Error(`TCGdex ${r.status}`);
     let list=await r.json();
     if(!Array.isArray(list)||!list.length){
-      r=await fetch(`https://api.tcgdex.net/v2/en/cards?name=${encodeURIComponent(c.card)}&localId=${id}`);
+      r=await fetch(`https://api.tcgdex.net/v2/en/cards?name=${encodeURIComponent(c.card)}&localId=${id}${force?`&_=${Date.now()}`:''}`,{cache:force?'no-store':'default'});
       if(!r.ok) throw new Error(`TCGdex ${r.status}`);
       list=await r.json();
     }
@@ -45,7 +45,7 @@ async function resolveTcgdexImage(c){
     const shortlist=list.slice(0,12);
     for(const brief of shortlist){
       try{
-        const detailResp=await fetch(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(brief.id)}`);
+        const detailResp=await fetch(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(brief.id)}${force?`?_=${Date.now()}`:''}`,{cache:force?'no-store':'default'});
         if(!detailResp.ok) continue;
         const detail=await detailResp.json();
         const score=(norm(detail.name)===norm(c.card)?50:0)+(norm(detail.localId)===norm(localId(c.number))?50:0)+setScore(detail.set?.name,c.set);
@@ -62,53 +62,48 @@ async function resolveTcgdexImage(c){
   }
 }
 
-async function hydrateImage(img,ph,link,c){
+async function hydrateImage(img,ph,link,c,force=false){
   img.alt=`${c.card} ${c.number}`;
   const candidates=[];
   const small=pokemonTcgSmall(c.image);
   if(validImage(small)) candidates.push(small);
   if(validImage(c.image) && c.image!==small) candidates.push(c.image);
   const cached=imageCache[imageKey(c)];
-  if(validImage(cached)) candidates.push(cached);
+  if(!force && validImage(cached)) candidates.push(cached);
 
   const tryCandidate=(url)=>new Promise(resolve=>{
     const probe=new Image();
     probe.decoding='async';
     probe.onload=()=>resolve(url);
     probe.onerror=()=>resolve('');
-    probe.src=url;
+    probe.src=force ? `${url}${url.includes('?')?'&':'?'}_=${Date.now()}` : url;
   });
 
   for(const url of [...new Set(candidates)]){
     const ok=await tryCandidate(url);
-    if(ok){ img.src=ok; img.style.display='block'; ph.classList.remove('visible'); link.href=ok; link.style.display='inline'; return; }
+    if(ok){ img.src=ok; img.style.display='block'; ph.classList.remove('visible'); link.href=url; link.style.display='inline'; return; }
   }
 
-  const fallback=await resolveTcgdexImage(c);
+  const fallback=await resolveTcgdexImage(c,force);
   if(fallback){
     const ok=await tryCandidate(fallback);
-    if(ok){ img.src=ok; img.style.display='block'; ph.classList.remove('visible'); link.href=ok; link.style.display='inline'; return; }
+    if(ok){ img.src=ok; img.style.display='block'; ph.classList.remove('visible'); link.href=fallback; link.style.display='inline'; return; }
   }
 
   img.style.display='none'; ph.classList.add('visible'); link.style.display='none';
 }
 
 async function loadData(force=false){
-  const url=(window.APP_CONFIG?.liveDataUrl||'./data.json') + (force?`?t=${Date.now()}`:'');
-  try{
-    const r=await fetch(url,{cache:force?'no-store':'default'});
-    if(!r.ok) throw new Error(`HTTP ${r.status}`);
-    const json=await r.json();
-    DATA=json.cards||[];
-    localStorage.setItem('pokemonWatchlistCache',JSON.stringify(json));
-    renderUpdated(json.updatedAt,false);
-  }catch(err){
-    const cached=localStorage.getItem('pokemonWatchlistCache');
-    if(cached){
-      const json=JSON.parse(cached); DATA=json.cards||[]; renderUpdated(json.updatedAt,true);
-    }else throw err;
-  }
-  render();
+  const base=(window.APP_CONFIG?.liveDataUrl||'./data.json');
+  const url=base + (force?`${base.includes('?')?'&':'?'}t=${Date.now()}`:'');
+  const r=await fetch(url,{cache:force?'no-store':'default',headers:force?{'Cache-Control':'no-cache'}:{}});
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  const json=await r.json();
+  DATA=json.cards||[];
+  localStorage.setItem('pokemonWatchlistCache',JSON.stringify(json));
+  renderUpdated(json.updatedAt,false);
+  render(force);
+  return json;
 }
 function renderUpdated(ts,cached){
   const d=ts?new Date(ts):null;
@@ -142,7 +137,7 @@ function renderSummary(arr){
     <div class="stat"><span>Total target resale</span><b>${money(resale)}</b></div>
     <div class="stat"><span>Avg. return on cost</span><b>${pct(avg)}</b></div>`;
 }
-function render(){
+function render(forceImages=false){
   const arr=filtered(), grid=$('#grid'), tpl=$('#cardTemplate');
   grid.innerHTML=''; renderSummary(arr); $('#empty').hidden=arr.length>0;
   const frag=document.createDocumentFragment();
@@ -159,7 +154,7 @@ function render(){
     node.querySelector('.margin').textContent=`Margin ${money(c.margin)}`;
     const img=node.querySelector('.cardimg'), ph=node.querySelector('.placeholder'), link=node.querySelector('.imageLink');
     img.style.display='none'; ph.classList.add('visible'); link.style.display='none';
-    pending.push([img,ph,link,c]);
+    pending.push([img,ph,link,c,forceImages]);
     frag.appendChild(node);
   }
   grid.appendChild(frag);
@@ -168,13 +163,46 @@ function render(){
   const run=async()=>{ while(i<pending.length){ const item=pending[i++]; await hydrateImage(...item); } };
   for(let w=0;w<workers;w++) run();
 }
-$('#search').addEventListener('input',render);
-$('#topN').addEventListener('change',render);
-$('#sort').addEventListener('change',render);
+
+async function refreshAll(){
+  const btn=$('#refreshBtn');
+  const oldText=btn.textContent;
+  btn.disabled=true;
+  btn.textContent='Refreshing…';
+  $('#updated').textContent='Checking for latest data…';
+  try{
+    localStorage.removeItem(IMAGE_CACHE_KEY);
+    Object.keys(imageCache).forEach(k=>delete imageCache[k]);
+    await loadData(true);
+    btn.textContent='Updated ✓';
+    setTimeout(()=>{btn.textContent=oldText;btn.disabled=false;},1200);
+  }catch(err){
+    console.error(err);
+    const cached=localStorage.getItem('pokemonWatchlistCache');
+    if(cached){
+      const json=JSON.parse(cached); DATA=json.cards||[]; renderUpdated(json.updatedAt,true); render();
+    }else $('#updated').textContent='Refresh failed';
+    btn.textContent='Retry';
+    btn.disabled=false;
+  }
+}
+
+$('#search').addEventListener('input',()=>render());
+$('#topN').addEventListener('change',()=>render());
+$('#sort').addEventListener('change',()=>render());
 document.querySelectorAll('.chip').forEach(btn=>btn.addEventListener('click',()=>{
   document.querySelectorAll('.chip').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active'); STATE.price=btn.dataset.price; render();
 }));
-$('#refreshBtn').addEventListener('click',()=>loadData(true));
-loadData().catch(err=>{$('#updated').textContent='Could not load data';console.error(err)});
+$('#refreshBtn').addEventListener('click',refreshAll);
+
+loadData().catch(err=>{
+  const cached=localStorage.getItem('pokemonWatchlistCache');
+  if(cached){
+    const json=JSON.parse(cached); DATA=json.cards||[]; renderUpdated(json.updatedAt,true); render();
+  }else{
+    $('#updated').textContent='Could not load data';
+    console.error(err);
+  }
+});
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
