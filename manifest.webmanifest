@@ -1,0 +1,8 @@
+{
+  "name": "Pokémon Resale Watchlist",
+  "short_name": "Poké Watchlist",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#07111f",
+  "theme_color": "#07111f"
+}
