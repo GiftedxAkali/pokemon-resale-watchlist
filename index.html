@@ -6,9 +6,10 @@
   <meta name="theme-color" content="#0b1220">
   <meta name="description" content="Pokémon card acquisition watchlist and Marketplace deal scanner.">
   <title>Pokémon Resale Watchlist</title>
-  <link rel="manifest" href="manifest.webmanifest?v=13">
-  <link rel="stylesheet" href="styles.css?v=13">
-  <link rel="stylesheet" href="scanner-feedback.css?v=13">
+  <link rel="manifest" href="manifest.webmanifest?v=14">
+  <link rel="stylesheet" href="styles.css?v=14">
+  <link rel="stylesheet" href="scanner-feedback.css?v=14">
+  <link rel="stylesheet" href="scanner-sales.css?v=14">
 </head>
 <body>
 <header class="topbar">
@@ -42,7 +43,7 @@
     <div class="scannerIntro">
       <div>
         <h2>Marketplace Deal Scanner</h2>
-        <p>Paste a Facebook Marketplace link, paste listing text, or upload screenshots. Screenshot OCR runs in your browser. Cards outside your watchlist are also looked up online for identification and TCGPlayer market pricing when available.</p>
+        <p>Paste a Facebook Marketplace link, paste listing text, or upload screenshots. Screenshot OCR runs in your browser. Cards outside your watchlist are also looked up online for identification and TCGPlayer pricing when available.</p>
       </div>
     </div>
 
@@ -84,7 +85,7 @@
 
       <aside class="scannerPanel policyPanel">
         <h3>Buy rules</h3>
-        <p>Watchlist cards use your curated target-buy values. Cards found through online lookup use a conservative percentage of TCGPlayer market price, then condition is applied.</p>
+        <p>Preferred valuation is the arithmetic mean of the 3 most recent TCGPlayer sales for the exact card in Near Mint condition. If those three sales are unavailable, the scanner clearly falls back to TCGPlayer Market Price.</p>
         <div class="rule"><b>BUY</b><span>Ask ≤ 90% of adjusted max buy</span></div>
         <div class="rule"><b>NEGOTIATE</b><span>Ask ≤ 110% of adjusted max buy</span></div>
         <div class="rule"><b>PASS</b><span>Ask &gt; 110% of adjusted max buy</span></div>
@@ -109,10 +110,11 @@
 </template>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script src="config.js?v=13"></script>
-<script src="app.js?v=13"></script>
-<script src="scanner-online.js?v=13"></script>
-<script src="scanner-enhancements.js?v=13"></script>
-<script src="scanner-feedback.js?v=13"></script>
+<script src="config.js?v=14"></script>
+<script src="app.js?v=14"></script>
+<script src="scanner-online.js?v=14"></script>
+<script src="scanner-enhancements.js?v=14"></script>
+<script src="scanner-feedback.js?v=14"></script>
+<script src="scanner-sales.js?v=14"></script>
 </body>
 </html>
