@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#0b1220">
   <meta name="description" content="Pokémon card acquisition watchlist and Marketplace deal scanner.">
   <title>Pokémon Resale Watchlist</title>
-  <link rel="manifest" href="manifest.webmanifest?v=12">
-  <link rel="stylesheet" href="styles.css?v=12">
+  <link rel="manifest" href="manifest.webmanifest?v=13">
+  <link rel="stylesheet" href="styles.css?v=13">
 </head>
 <body>
 <header class="topbar">
@@ -87,7 +87,7 @@
         <div class="rule"><b>BUY</b><span>Ask ≤ 90% of adjusted max buy</span></div>
         <div class="rule"><b>NEGOTIATE</b><span>Ask ≤ 110% of adjusted max buy</span></div>
         <div class="rule"><b>PASS</b><span>Ask &gt; 110% of adjusted max buy</span></div>
-        <p class="finePrint">Your card corrections are saved in this browser and reused in future scans. Always verify authenticity, edition, card number, condition, and whether the pictured cards are actually included before purchasing.</p>
+        <p class="finePrint">Verified corrections now feed a persistent learning dataset stored on this device. Repeated confirmations can influence future match ranking. Always verify authenticity, edition, card number, condition, and whether the pictured cards are actually included before purchasing.</p>
       </aside>
     </div>
 
@@ -108,9 +108,10 @@
 </template>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script src="config.js?v=12"></script>
-<script src="app.js?v=12"></script>
-<script src="scanner-online.js?v=12"></script>
-<script src="scanner-enhancements.js?v=12"></script>
+<script src="config.js?v=13"></script>
+<script src="app.js?v=13"></script>
+<script src="scanner-online.js?v=13"></script>
+<script src="scanner-enhancements.js?v=13"></script>
+<script src="scanner-feedback.js?v=13"></script>
 </body>
 </html>
