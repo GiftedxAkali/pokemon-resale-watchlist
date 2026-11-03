@@ -4,12 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0b1220">
-  <meta name="description" content="Pokémon card acquisition watchlist and Marketplace deal scanner.">
+  <meta name="description" content="Pokémon card acquisition watchlist and manual resale lot builder.">
   <title>Pokémon Resale Watchlist</title>
-  <link rel="manifest" href="manifest.webmanifest?v=14">
-  <link rel="stylesheet" href="styles.css?v=14">
-  <link rel="stylesheet" href="scanner-feedback.css?v=14">
-  <link rel="stylesheet" href="scanner-sales.css?v=14">
+  <link rel="manifest" href="manifest.webmanifest?v=15">
+  <link rel="stylesheet" href="styles.css?v=15">
 </head>
 <body>
 <header class="topbar">
@@ -22,7 +20,7 @@
   </div>
   <nav class="tabs" aria-label="Main sections">
     <button class="tab active" data-tab="watchlist">Watchlist</button>
-    <button class="tab" data-tab="scanner">Marketplace Scanner</button>
+    <button class="tab" data-tab="scanner">Card List Builder</button>
   </nav>
 </header>
 
@@ -42,59 +40,39 @@
   <section id="scannerView" class="view">
     <div class="scannerIntro">
       <div>
-        <h2>Marketplace Deal Scanner</h2>
-        <p>Paste a Facebook Marketplace link, paste listing text, or upload screenshots. Screenshot OCR runs in your browser. Cards outside your watchlist are also looked up online for identification and TCGPlayer pricing when available.</p>
+        <h2>Manual Card List Builder</h2>
+        <p>Search for each card, select the exact version from the online results, and add it to your lot. The list will calculate per-card market value plus total market value, recommended purchase price, and recommended sale price.</p>
       </div>
+      <button id="clearManualList" class="ghost">Clear list</button>
     </div>
 
-    <div class="scannerLayout">
-      <section class="scannerPanel">
-        <label>Marketplace listing link
-          <input id="listingUrl" type="url" placeholder="https://www.facebook.com/marketplace/item/…">
-        </label>
-        <div class="formRow">
-          <label>Asking price
-            <input id="askingPrice" type="number" min="0" step="1" placeholder="Auto-detect or enter price">
-          </label>
-          <label>Condition
-            <select id="condition">
-              <option value="0.85" selected>Unknown / mixed</option>
-              <option value="1">Near Mint</option>
-              <option value="0.9">Lightly Played</option>
-              <option value="0.72">Moderately Played</option>
-              <option value="0.5">Heavily Played</option>
-            </select>
-          </label>
-        </div>
-        <label>Listing text / seller description
-          <textarea id="listingText" rows="7" placeholder="Paste the title, description, card names, prices, set/card numbers, etc."></textarea>
-        </label>
-        <label class="uploadBox">
-          <span>Upload screenshots</span>
-          <small>PNG, JPG, WEBP — multiple images supported</small>
-          <input id="screenshots" type="file" accept="image/png,image/jpeg,image/webp" multiple>
-        </label>
-        <div id="imagePreviews" class="imagePreviews"></div>
-        <div class="scannerActions">
-          <button id="scanBtn" class="primary">Scan listing</button>
-          <button id="clearScanBtn" class="ghost">Clear</button>
-          <a id="openListing" class="ghost linkButton" target="_blank" rel="noopener noreferrer" hidden>Open listing</a>
-        </div>
-        <div id="scanStatus" class="scanStatus"></div>
-      </section>
+    <section class="scannerPanel manualBuilderSearch">
+      <div class="manualBuilderBar">
+        <input id="manualCardSearch" type="search" placeholder="Search card name, set, or collector number…" autocomplete="off">
+        <button id="manualSearchBtn" class="primary">Search cards</button>
+      </div>
+      <div id="manualSearchStatus" class="scanStatus"></div>
+      <div id="manualSearchResults" class="mlResults"></div>
+    </section>
 
-      <aside class="scannerPanel policyPanel">
-        <h3>Buy rules</h3>
-        <p>Preferred valuation is the arithmetic mean of the 3 most recent TCGPlayer sales for the exact card in Near Mint condition. If those three sales are unavailable, the scanner clearly falls back to TCGPlayer Market Price.</p>
-        <div class="rule"><b>BUY</b><span>Ask ≤ 90% of adjusted max buy</span></div>
-        <div class="rule"><b>NEGOTIATE</b><span>Ask ≤ 110% of adjusted max buy</span></div>
-        <div class="rule"><b>PASS</b><span>Ask &gt; 110% of adjusted max buy</span></div>
-        <p class="finePrint">Verified corrections now feed a persistent learning dataset stored on this device. Repeated confirmations can influence future match ranking. Always verify authenticity, edition, card number, condition, and whether the pictured cards are actually included before purchasing.</p>
-      </aside>
-    </div>
+    <section id="manualListSummary" class="scanSummary manualSummary"></section>
 
-    <section id="scanSummary" class="scanSummary" hidden></section>
-    <section id="scanResults" class="scanResults"></section>
+    <section class="scannerPanel">
+      <div class="manualListHeader">
+        <div>
+          <h3>Selected cards</h3>
+          <p>Market values use current TCGplayer market pricing exposed through TCGdex when available.</p>
+        </div>
+      </div>
+      <div id="manualListRows" class="manualListRows"></div>
+    </section>
+
+    <section class="scannerPanel manualRules">
+      <h3>Pricing logic</h3>
+      <div class="rule"><b>Recommended purchase</b><span>65% under $25 · 68% $25–75 · 70% $75–200 · 72% $200+</span></div>
+      <div class="rule"><b>Recommended sale</b><span>95% of current market value</span></div>
+      <p class="finePrint">These are resale-oriented starting points. Verify authenticity, exact printing, condition, and current demand before purchasing.</p>
+    </section>
   </section>
 </main>
 
@@ -109,12 +87,8 @@
   </article>
 </template>
 
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script src="config.js?v=14"></script>
-<script src="app.js?v=14"></script>
-<script src="scanner-online.js?v=14"></script>
-<script src="scanner-enhancements.js?v=14"></script>
-<script src="scanner-feedback.js?v=14"></script>
-<script src="scanner-sales.js?v=14"></script>
+<script src="config.js?v=15"></script>
+<script src="app.js?v=15"></script>
+<script src="manual-list.js?v=15"></script>
 </body>
 </html>
