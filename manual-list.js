@@ -77,11 +77,17 @@ function mlRestoreHidden(){MANUAL_HIDDEN.clear();mlSaveHidden();mlRenderSearch()
 function mlAddById(id){const c=MANUAL_SEARCH.find(x=>x.id===id);if(!c)return;const existing=MANUAL_LIST.find(x=>x.id===c.id);if(existing)existing.qty+=1;else MANUAL_LIST.push({...c,qty:1});mlSave();mlRender()}
 function mlRemove(i){MANUAL_LIST.splice(i,1);mlSave();mlRender()}
 function mlQty(i,v){const q=Math.max(1,Number(v)||1);MANUAL_LIST[i].qty=q;mlSave();mlRender()}
+function mlAddInventory(i){
+  const c=MANUAL_LIST[i];if(!c)return;
+  if(typeof window.inventoryAddCard==='function')window.inventoryAddCard(c,Number(c.qty)||1);
+}
 function mlRender(){
   const rows=$('#manualListRows'),summary=$('#manualListSummary');if(!rows||!summary)return;
   let tm=0,tb=0,ts=0;rows.innerHTML='';
-  MANUAL_LIST.forEach((c,i)=>{const q=Number(c.qty)||1,market=Number(c.market)||0,buy=market*mlBuyPct(market),sale=market*mlSalePct();tm+=market*q;tb+=buy*q;ts+=sale*q;const div=document.createElement('div');div.className='mlRow';div.innerHTML=`${c.image?`<img src="${mlEsc(c.image)}" alt="${mlEsc(c.name)}">`:'<div class="mlNoImg"></div>'}<div class="mlInfo"><b>${mlEsc(c.name)}</b><span>${mlEsc(c.set)} · ${mlEsc(c.number)}</span><small>${c.variant?`TCGplayer ${mlEsc(c.variant)}`:'TCGplayer market'}</small></div><div class="mlVals"><span>Market <b>${market?mlMoney(market):'—'}</b></span><span>Recommended buy <b>${market?mlMoney(buy):'—'}</b></span><span>Recommended sale <b>${market?mlMoney(sale):'—'}</b></span></div><div class="mlQty"><label>Qty<input type="number" min="1" value="${q}" data-q="${i}"></label><button class="ghost mlRemove" data-r="${i}">Remove</button></div>`;rows.appendChild(div)});
-  rows.querySelectorAll('[data-q]').forEach(x=>x.onchange=()=>mlQty(Number(x.dataset.q),x.value));rows.querySelectorAll('[data-r]').forEach(x=>x.onclick=()=>mlRemove(Number(x.dataset.r)));
+  MANUAL_LIST.forEach((c,i)=>{const q=Number(c.qty)||1,market=Number(c.market)||0,buy=market*mlBuyPct(market),sale=market*mlSalePct();tm+=market*q;tb+=buy*q;ts+=sale*q;const div=document.createElement('div');div.className='mlRow';div.innerHTML=`${c.image?`<img src="${mlEsc(c.image)}" alt="${mlEsc(c.name)}">`:'<div class="mlNoImg"></div>'}<div class="mlInfo"><b>${mlEsc(c.name)}</b><span>${mlEsc(c.set)} · ${mlEsc(c.number)}</span><small>${c.variant?`TCGplayer ${mlEsc(c.variant)}`:'TCGplayer market'}</small></div><div class="mlVals"><span>Market <b>${market?mlMoney(market):'—'}</b></span><span>Recommended buy <b>${market?mlMoney(buy):'—'}</b></span><span>Recommended sale <b>${market?mlMoney(sale):'—'}</b></span></div><div class="mlQty"><label>Qty<input type="number" min="1" value="${q}" data-q="${i}"></label><button class="primary mlInventory" data-inv="${i}">Add to inventory</button><button class="ghost mlRemove" data-r="${i}">Remove</button></div>`;rows.appendChild(div)});
+  rows.querySelectorAll('[data-q]').forEach(x=>x.onchange=()=>mlQty(Number(x.dataset.q),x.value));
+  rows.querySelectorAll('[data-inv]').forEach(x=>x.onclick=()=>mlAddInventory(Number(x.dataset.inv)));
+  rows.querySelectorAll('[data-r]').forEach(x=>x.onclick=()=>mlRemove(Number(x.dataset.r)));
   summary.innerHTML=`<div class="scanMetric"><span>Cards in list</span><b>${MANUAL_LIST.reduce((s,c)=>s+(Number(c.qty)||1),0)}</b></div><div class="scanMetric"><span>Total market value</span><b>${mlMoney(tm)}</b></div><div class="scanMetric"><span>Recommended purchase</span><b>${mlMoney(tb)}</b></div><div class="scanMetric"><span>Recommended sale</span><b>${mlMoney(ts)}</b></div>`;
 }
 function mlClear(){if(!MANUAL_LIST.length||confirm('Clear the entire card list?')){MANUAL_LIST=[];mlSave();mlRender()}}
