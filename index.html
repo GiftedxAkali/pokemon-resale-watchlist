@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#0b1220">
   <meta name="description" content="Pokémon card acquisition watchlist and manual resale lot builder.">
   <title>Pokémon Resale Watchlist</title>
-  <link rel="manifest" href="manifest.webmanifest?v=15">
-  <link rel="stylesheet" href="styles.css?v=15">
-  <link rel="stylesheet" href="manual-list.css?v=15">
+  <link rel="manifest" href="manifest.webmanifest?v=16">
+  <link rel="stylesheet" href="styles.css?v=16">
+  <link rel="stylesheet" href="manual-list.css?v=16">
 </head>
 <body>
 <header class="topbar">
@@ -42,7 +42,7 @@
     <div class="scannerIntro">
       <div>
         <h2>Manual Card List Builder</h2>
-        <p>Search for each card, select the exact version from the online results, and add it to your lot. The list will calculate per-card market value plus total market value, recommended purchase price, and recommended sale price.</p>
+        <p>Search for each card, select the exact version from the online results, and add it to your lot. Remove unwanted recommendations and research additional printings when the first results do not include the card you need.</p>
       </div>
       <button id="clearManualList" class="ghost">Clear list</button>
     </div>
@@ -51,6 +51,10 @@
       <div class="manualBuilderBar">
         <input id="manualCardSearch" type="search" placeholder="Search card name, set, or collector number…" autocomplete="off">
         <button id="manualSearchBtn" class="primary">Search cards</button>
+      </div>
+      <div class="manualResearchActions">
+        <button id="researchMoreBtn" class="ghost">Research more versions</button>
+        <button id="restoreHiddenBtn" class="ghost">Restore removed recommendations</button>
       </div>
       <div id="manualSearchStatus" class="scanStatus"></div>
       <div id="manualSearchResults" class="mlResults"></div>
@@ -72,7 +76,7 @@
       <h3>Pricing logic</h3>
       <div class="rule"><b>Recommended purchase</b><span>65% under $25 · 68% $25–75 · 70% $75–200 · 72% $200+</span></div>
       <div class="rule"><b>Recommended sale</b><span>95% of current market value</span></div>
-      <p class="finePrint">These are resale-oriented starting points. Verify authenticity, exact printing, condition, and current demand before purchasing.</p>
+      <p class="finePrint">Removed recommendations stay hidden on this device until restored. These are resale-oriented starting points; verify authenticity, exact printing, condition, and current demand before purchasing.</p>
     </section>
   </section>
 </main>
@@ -88,8 +92,8 @@
   </article>
 </template>
 
-<script src="config.js?v=15"></script>
-<script src="app.js?v=15"></script>
-<script src="manual-list.js?v=15"></script>
+<script src="config.js?v=16"></script>
+<script src="app.js?v=16"></script>
+<script src="manual-list.js?v=16"></script>
 </body>
 </html>
