@@ -15,7 +15,25 @@ function mlLoad(){
 function mlSave(){try{localStorage.setItem(MANUAL_LIST_KEY,JSON.stringify(MANUAL_LIST))}catch{}}
 function mlSaveHidden(){try{localStorage.setItem(MANUAL_HIDDEN_KEY,JSON.stringify([...MANUAL_HIDDEN]))}catch{}}
 function mlBuyPct(m){m=Number(m)||0;if(m>=200)return .72;if(m>=75)return .70;if(m>=25)return .68;return .65}
-function mlSalePct(){return .95}
+function mlDemandTier(card){
+  const n=String(card?.name||'').toLowerCase();
+  const high=['charizard','pikachu','umbreon','gengar','mew','mewtwo','rayquaza','lugia','greninja','eevee','sylveon','dragonite','giratina'];
+  const medium=['gardevoir','lucario','espeon','leafeon','glaceon','vaporeon','jolteon','flareon','blastoise','venusaur','snorlax','gyarados','magikarp','garchomp','darkrai'];
+  if(high.some(x=>n.includes(x)))return 'high';
+  if(medium.some(x=>n.includes(x)))return 'medium';
+  return 'standard';
+}
+function mlSaleTargets(card){
+  const market=Number(card?.market)||0,tier=mlDemandTier(card);
+  let fastPct=tier==='high'?.95:tier==='medium'?.93:.90;
+  let listPct=tier==='high'?1.02:tier==='medium'?1.00:.98;
+  if(market>=200){fastPct-=.01;listPct-=.02}else if(market>=75){fastPct-=.005;listPct-=.01}else if(market>0&&market<25&&tier==='high'){listPct+=.01}
+  fastPct=Math.max(.88,Math.min(.96,fastPct));
+  listPct=Math.max(.96,Math.min(1.03,listPct));
+  const fast=market*fastPct,list=market*listPct,net=list*.87;
+  return {tier,fastPct,listPct,fast,list,net};
+}
+window.cardSaleTargets=mlSaleTargets;
 function mlTcgPrice(detail){
   const p=detail?.pricing?.tcgplayer;if(!p)return null;
   const preferred=['holofoil','normal','unlimited-holofoil','unlimited','reverse-holofoil','reverse'];
@@ -77,18 +95,15 @@ function mlRestoreHidden(){MANUAL_HIDDEN.clear();mlSaveHidden();mlRenderSearch()
 function mlAddById(id){const c=MANUAL_SEARCH.find(x=>x.id===id);if(!c)return;const existing=MANUAL_LIST.find(x=>x.id===c.id);if(existing)existing.qty+=1;else MANUAL_LIST.push({...c,qty:1});mlSave();mlRender()}
 function mlRemove(i){MANUAL_LIST.splice(i,1);mlSave();mlRender()}
 function mlQty(i,v){const q=Math.max(1,Number(v)||1);MANUAL_LIST[i].qty=q;mlSave();mlRender()}
-function mlAddInventory(i){
-  const c=MANUAL_LIST[i];if(!c)return;
-  if(typeof window.inventoryAddCard==='function')window.inventoryAddCard(c,Number(c.qty)||1);
-}
+function mlAddInventory(i){const c=MANUAL_LIST[i];if(!c)return;if(typeof window.inventoryAddCard==='function')window.inventoryAddCard(c,Number(c.qty)||1)}
 function mlRender(){
   const rows=$('#manualListRows'),summary=$('#manualListSummary');if(!rows||!summary)return;
-  let tm=0,tb=0,ts=0;rows.innerHTML='';
-  MANUAL_LIST.forEach((c,i)=>{const q=Number(c.qty)||1,market=Number(c.market)||0,buy=market*mlBuyPct(market),sale=market*mlSalePct();tm+=market*q;tb+=buy*q;ts+=sale*q;const div=document.createElement('div');div.className='mlRow';div.innerHTML=`${c.image?`<img src="${mlEsc(c.image)}" alt="${mlEsc(c.name)}">`:'<div class="mlNoImg"></div>'}<div class="mlInfo"><b>${mlEsc(c.name)}</b><span>${mlEsc(c.set)} · ${mlEsc(c.number)}</span><small>${c.variant?`TCGplayer ${mlEsc(c.variant)}`:'TCGplayer market'}</small></div><div class="mlVals"><span>Market <b>${market?mlMoney(market):'—'}</b></span><span>Recommended buy <b>${market?mlMoney(buy):'—'}</b></span><span>Recommended sale <b>${market?mlMoney(sale):'—'}</b></span></div><div class="mlQty"><label>Qty<input type="number" min="1" value="${q}" data-q="${i}"></label><button class="primary mlInventory" data-inv="${i}">Add to inventory</button><button class="ghost mlRemove" data-r="${i}">Remove</button></div>`;rows.appendChild(div)});
+  let tm=0,tb=0,tf=0,tl=0,tn=0;rows.innerHTML='';
+  MANUAL_LIST.forEach((c,i)=>{const q=Number(c.qty)||1,market=Number(c.market)||0,buy=market*mlBuyPct(market),t=mlSaleTargets(c);tm+=market*q;tb+=buy*q;tf+=t.fast*q;tl+=t.list*q;tn+=t.net*q;const div=document.createElement('div');div.className='mlRow';div.innerHTML=`${c.image?`<img src="${mlEsc(c.image)}" alt="${mlEsc(c.name)}">`:'<div class="mlNoImg"></div>'}<div class="mlInfo"><b>${mlEsc(c.name)}</b><span>${mlEsc(c.set)} · ${mlEsc(c.number)}</span><small>${c.variant?`TCGplayer ${mlEsc(c.variant)}`:'TCGplayer market'} · ${mlEsc(t.tier)} demand heuristic</small></div><div class="mlVals"><span>Market <b>${market?mlMoney(market):'—'}</b></span><span>Recommended buy <b>${market?mlMoney(buy):'—'}</b></span><span>Fast sale <b>${market?mlMoney(t.fast):'—'}</b></span><span>Recommended list <b>${market?mlMoney(t.list):'—'}</b></span><span>Est. online net <b>${market?mlMoney(t.net):'—'}</b></span></div><div class="mlQty"><label>Qty<input type="number" min="1" value="${q}" data-q="${i}"></label><button class="primary mlInventory" data-inv="${i}">Add to inventory</button><button class="ghost mlRemove" data-r="${i}">Remove</button></div>`;rows.appendChild(div)});
   rows.querySelectorAll('[data-q]').forEach(x=>x.onchange=()=>mlQty(Number(x.dataset.q),x.value));
   rows.querySelectorAll('[data-inv]').forEach(x=>x.onclick=()=>mlAddInventory(Number(x.dataset.inv)));
   rows.querySelectorAll('[data-r]').forEach(x=>x.onclick=()=>mlRemove(Number(x.dataset.r)));
-  summary.innerHTML=`<div class="scanMetric"><span>Cards in list</span><b>${MANUAL_LIST.reduce((s,c)=>s+(Number(c.qty)||1),0)}</b></div><div class="scanMetric"><span>Total market value</span><b>${mlMoney(tm)}</b></div><div class="scanMetric"><span>Recommended purchase</span><b>${mlMoney(tb)}</b></div><div class="scanMetric"><span>Recommended sale</span><b>${mlMoney(ts)}</b></div>`;
+  summary.innerHTML=`<div class="scanMetric"><span>Cards in list</span><b>${MANUAL_LIST.reduce((s,c)=>s+(Number(c.qty)||1),0)}</b></div><div class="scanMetric"><span>Total market value</span><b>${mlMoney(tm)}</b></div><div class="scanMetric"><span>Recommended purchase</span><b>${mlMoney(tb)}</b></div><div class="scanMetric"><span>Fast sale total</span><b>${mlMoney(tf)}</b></div><div class="scanMetric"><span>Recommended list total</span><b>${mlMoney(tl)}</b></div><div class="scanMetric"><span>Est. online net</span><b>${mlMoney(tn)}</b></div>`;
 }
 function mlClear(){if(!MANUAL_LIST.length||confirm('Clear the entire card list?')){MANUAL_LIST=[];mlSave();mlRender()}}
 function mlInit(){
