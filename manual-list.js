@@ -1,11 +1,19 @@
 const MANUAL_LIST_KEY='pokemonManualCardListV1';
+const MANUAL_HIDDEN_KEY='pokemonManualHiddenRecommendationsV1';
 let MANUAL_LIST=[];
 let MANUAL_SEARCH=[];
+let MANUAL_HIDDEN=new Set();
+let LAST_QUERY='';
+let RESEARCH_LEVEL=0;
 
 function mlEsc(s){return String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
 function mlMoney(n){return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}).format(Number(n)||0)}
-function mlLoad(){try{MANUAL_LIST=JSON.parse(localStorage.getItem(MANUAL_LIST_KEY)||'[]')||[]}catch{MANUAL_LIST=[]}}
+function mlLoad(){
+  try{MANUAL_LIST=JSON.parse(localStorage.getItem(MANUAL_LIST_KEY)||'[]')||[]}catch{MANUAL_LIST=[]}
+  try{MANUAL_HIDDEN=new Set(JSON.parse(localStorage.getItem(MANUAL_HIDDEN_KEY)||'[]')||[])}catch{MANUAL_HIDDEN=new Set()}
+}
 function mlSave(){try{localStorage.setItem(MANUAL_LIST_KEY,JSON.stringify(MANUAL_LIST))}catch{}}
+function mlSaveHidden(){try{localStorage.setItem(MANUAL_HIDDEN_KEY,JSON.stringify([...MANUAL_HIDDEN]))}catch{}}
 function mlBuyPct(m){m=Number(m)||0;if(m>=200)return .72;if(m>=75)return .70;if(m>=25)return .68;return .65}
 function mlSalePct(){return .95}
 function mlTcgPrice(detail){
@@ -19,20 +27,54 @@ function mlTcgPrice(detail){
 async function mlList(q){const r=await fetch(`https://api.tcgdex.net/v2/en/cards?name=${encodeURIComponent(q)}`,{cache:'no-store'});if(!r.ok)throw new Error('Search failed');const j=await r.json();return Array.isArray(j)?j:[]}
 async function mlDetail(id){const r=await fetch(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(id)}`,{cache:'no-store'});if(!r.ok)throw new Error('Card lookup failed');return r.json()}
 function mlScore(d,q){const nq=norm(q),nn=norm(d.name||''),raw=String(q).toLowerCase();let s=0;if(nq===nn)s+=150;else if(nq.includes(nn)||nn.includes(nq))s+=90;const num=(String(q).match(/\b([A-Z]{0,4}\d{1,3}|TG\d{1,3}|GG\d{1,3})\s*\/\s*\d{1,3}\b/i)||[])[1];if(num&&norm(num)===norm(d.localId))s+=180;for(const w of words(d.set?.name||'').filter(x=>x.length>3)){if(raw.includes(w))s+=12}return s}
-async function mlSearch(){
-  const q=$('#manualCardSearch')?.value?.trim(),status=$('#manualSearchStatus'),box=$('#manualSearchResults'),btn=$('#manualSearchBtn');if(!q)return;
-  if(btn){btn.disabled=true;btn.textContent='Searching…'};if(status)status.textContent='Searching online card database…';if(box)box.innerHTML='';
-  try{
-    const list=await mlList(q),scored=[];
-    for(const brief of list.slice(0,30)){const d=await mlDetail(brief.id);scored.push({detail:d,score:mlScore(d,q)})}
-    scored.sort((a,b)=>b.score-a.score);MANUAL_SEARCH=scored.slice(0,16).map(x=>{const p=mlTcgPrice(x.detail);return {id:x.detail.id,name:x.detail.name,set:x.detail.set?.name||'',number:x.detail.localId||'',image:x.detail.image?`${x.detail.image}/low.webp`:'',market:Number(p?.market||0),variant:p?.variant||'',score:x.score}});
-    if(status)status.textContent=MANUAL_SEARCH.length?`Select the exact card from ${MANUAL_SEARCH.length} result${MANUAL_SEARCH.length===1?'':'s'}.`:'No cards found.';
-    if(box)box.innerHTML=MANUAL_SEARCH.map((c,i)=>`<button class="mlResult" data-i="${i}">${c.image?`<img src="${mlEsc(c.image)}" alt="">`:'<span class="mlNoImg">?</span>'}<span><b>${mlEsc(c.name)}</b><small>${mlEsc(c.set)} · ${mlEsc(c.number)}</small><small>${c.market?`Market ${mlMoney(c.market)}`:'Market unavailable'}</small></span><span class="mlAdd">Add</span></button>`).join('');
-    box?.querySelectorAll('.mlResult').forEach(b=>b.onclick=()=>mlAdd(Number(b.dataset.i)));
-  }catch(err){if(status)status.textContent=err.message||'Search failed.'}
-  finally{if(btn){btn.disabled=false;btn.textContent='Search cards'}}
+function mlQueries(q,level=0){
+  const out=[q];
+  if(level>0){
+    const cleaned=String(q).replace(/\b\d{1,4}\s*\/\s*\d{1,4}\b/g,' ').replace(/\s+/g,' ').trim();
+    if(cleaned&&cleaned!==q)out.push(cleaned);
+    const tokens=cleaned.split(/\s+/).filter(Boolean);
+    if(tokens.length>1)out.push(tokens.slice(0,Math.min(3,tokens.length)).join(' '));
+    if(tokens.length)out.push(tokens[0]);
+  }
+  return [...new Set(out.filter(Boolean))];
 }
-function mlAdd(i){const c=MANUAL_SEARCH[i];if(!c)return;const existing=MANUAL_LIST.find(x=>x.id===c.id);if(existing)existing.qty+=1;else MANUAL_LIST.push({...c,qty:1});mlSave();mlRender()}
+async function mlCollect(q,level=0){
+  const ids=new Set(),briefs=[];
+  for(const query of mlQueries(q,level)){
+    try{const list=await mlList(query);for(const b of list){if(!b?.id||ids.has(b.id))continue;ids.add(b.id);briefs.push(b)}}catch{}
+  }
+  const limit=level>0?80:30,scored=[];
+  for(const brief of briefs.slice(0,limit)){
+    try{const d=await mlDetail(brief.id);scored.push({detail:d,score:mlScore(d,q)})}catch{}
+  }
+  scored.sort((a,b)=>b.score-a.score);
+  return scored;
+}
+function mlCardFromScored(x){const p=mlTcgPrice(x.detail);return {id:x.detail.id,name:x.detail.name,set:x.detail.set?.name||'',number:x.detail.localId||'',image:x.detail.image?`${x.detail.image}/low.webp`:'',market:Number(p?.market||0),variant:p?.variant||'',score:x.score}}
+function mlRenderSearch(){
+  const box=$('#manualSearchResults'),status=$('#manualSearchStatus');if(!box)return;
+  const visible=MANUAL_SEARCH.filter(c=>!MANUAL_HIDDEN.has(c.id));
+  if(status)status.textContent=visible.length?`Showing ${visible.length} version${visible.length===1?'':'s'}${RESEARCH_LEVEL?' after broader research':''}. Remove any versions you do not want to see again.`:'No visible recommendations. Use Research more versions to broaden the search.';
+  box.innerHTML=visible.map(c=>`<div class="mlResult" data-id="${mlEsc(c.id)}">${c.image?`<img src="${mlEsc(c.image)}" alt="">`:'<span class="mlNoImg">?</span>'}<span><b>${mlEsc(c.name)}</b><small>${mlEsc(c.set)} · ${mlEsc(c.number)}</small><small>${c.market?`Market ${mlMoney(c.market)}`:'Market unavailable'}</small></span><span class="mlResultActions"><button class="mlAddBtn" data-add-id="${mlEsc(c.id)}">Add</button><button class="mlHideBtn" data-hide-id="${mlEsc(c.id)}">Remove recommendation</button></span></div>`).join('');
+  box.querySelectorAll('[data-add-id]').forEach(b=>b.onclick=e=>{e.stopPropagation();mlAddById(b.dataset.addId)});
+  box.querySelectorAll('[data-hide-id]').forEach(b=>b.onclick=e=>{e.stopPropagation();mlHideRecommendation(b.dataset.hideId)});
+}
+async function mlSearch(research=false){
+  const q=$('#manualCardSearch')?.value?.trim(),btn=$('#manualSearchBtn'),more=$('#researchMoreBtn'),status=$('#manualSearchStatus');if(!q)return;
+  if(!research||q!==LAST_QUERY){LAST_QUERY=q;RESEARCH_LEVEL=0;MANUAL_SEARCH=[]}else RESEARCH_LEVEL+=1;
+  const active=research?more:btn;if(active){active.disabled=true;active.textContent=research?'Researching…':'Searching…'};if(status)status.textContent=research?'Researching additional printings and versions…':'Searching online card database…';
+  try{
+    const scored=await mlCollect(q,RESEARCH_LEVEL);
+    const merged=new Map(MANUAL_SEARCH.map(c=>[c.id,c]));
+    for(const x of scored){const c=mlCardFromScored(x);if(!merged.has(c.id)||c.score>(merged.get(c.id).score||0))merged.set(c.id,c)}
+    MANUAL_SEARCH=[...merged.values()].sort((a,b)=>(b.score||0)-(a.score||0)).slice(0,RESEARCH_LEVEL?60:16);
+    mlRenderSearch();
+  }catch(err){if(status)status.textContent=err.message||'Search failed.'}
+  finally{if(btn){btn.disabled=false;btn.textContent='Search cards'}if(more){more.disabled=false;more.textContent='Research more versions'}}
+}
+function mlHideRecommendation(id){if(!id)return;MANUAL_HIDDEN.add(id);mlSaveHidden();mlRenderSearch()}
+function mlRestoreHidden(){MANUAL_HIDDEN.clear();mlSaveHidden();mlRenderSearch()}
+function mlAddById(id){const c=MANUAL_SEARCH.find(x=>x.id===id);if(!c)return;const existing=MANUAL_LIST.find(x=>x.id===c.id);if(existing)existing.qty+=1;else MANUAL_LIST.push({...c,qty:1});mlSave();mlRender()}
 function mlRemove(i){MANUAL_LIST.splice(i,1);mlSave();mlRender()}
 function mlQty(i,v){const q=Math.max(1,Number(v)||1);MANUAL_LIST[i].qty=q;mlSave();mlRender()}
 function mlRender(){
@@ -43,5 +85,13 @@ function mlRender(){
   summary.innerHTML=`<div class="scanMetric"><span>Cards in list</span><b>${MANUAL_LIST.reduce((s,c)=>s+(Number(c.qty)||1),0)}</b></div><div class="scanMetric"><span>Total market value</span><b>${mlMoney(tm)}</b></div><div class="scanMetric"><span>Recommended purchase</span><b>${mlMoney(tb)}</b></div><div class="scanMetric"><span>Recommended sale</span><b>${mlMoney(ts)}</b></div>`;
 }
 function mlClear(){if(!MANUAL_LIST.length||confirm('Clear the entire card list?')){MANUAL_LIST=[];mlSave();mlRender()}}
-function mlInit(){mlLoad();$('#manualSearchBtn')?.addEventListener('click',mlSearch);$('#manualCardSearch')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();mlSearch()}});$('#clearManualList')?.addEventListener('click',mlClear);mlRender()}
+function mlInit(){
+  mlLoad();
+  $('#manualSearchBtn')?.addEventListener('click',()=>mlSearch(false));
+  $('#researchMoreBtn')?.addEventListener('click',()=>mlSearch(true));
+  $('#restoreHiddenBtn')?.addEventListener('click',mlRestoreHidden);
+  $('#manualCardSearch')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();mlSearch(false)}});
+  $('#clearManualList')?.addEventListener('click',mlClear);
+  mlRender();
+}
 mlInit();
