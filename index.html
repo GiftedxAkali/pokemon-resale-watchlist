@@ -4,11 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0b1220">
-  <meta name="description" content="Pokémon card acquisition watchlist and manual resale lot builder.">
+  <meta name="description" content="Pokémon card acquisition watchlist, card list builder, and active inventory tracker.">
   <title>Pokémon Resale Watchlist</title>
-  <link rel="manifest" href="manifest.webmanifest?v=16">
-  <link rel="stylesheet" href="styles.css?v=16">
-  <link rel="stylesheet" href="manual-list.css?v=16">
+  <link rel="manifest" href="manifest.webmanifest?v=17">
+  <link rel="stylesheet" href="styles.css?v=17">
+  <link rel="stylesheet" href="manual-list.css?v=17">
+  <link rel="stylesheet" href="inventory.css?v=17">
 </head>
 <body>
 <header class="topbar">
@@ -22,6 +23,7 @@
   <nav class="tabs" aria-label="Main sections">
     <button class="tab active" data-tab="watchlist">Watchlist</button>
     <button class="tab" data-tab="scanner">Card List Builder</button>
+    <button class="tab" data-tab="inventory">Active Inventory</button>
   </nav>
 </header>
 
@@ -66,7 +68,7 @@
       <div class="manualListHeader">
         <div>
           <h3>Selected cards</h3>
-          <p>Market values use current TCGplayer market pricing exposed through TCGdex when available.</p>
+          <p>Market values use current TCGplayer market pricing exposed through TCGdex when available. Add purchased cards directly to Active Inventory.</p>
         </div>
       </div>
       <div id="manualListRows" class="manualListRows"></div>
@@ -77,6 +79,21 @@
       <div class="rule"><b>Recommended purchase</b><span>65% under $25 · 68% $25–75 · 70% $75–200 · 72% $200+</span></div>
       <div class="rule"><b>Recommended sale</b><span>95% of current market value</span></div>
       <p class="finePrint">Removed recommendations stay hidden on this device until restored. These are resale-oriented starting points; verify authenticity, exact printing, condition, and current demand before purchasing.</p>
+    </section>
+  </section>
+
+  <section id="inventoryView" class="view">
+    <div class="inventoryIntro">
+      <div>
+        <h2>Active Inventory</h2>
+        <p>Track cards you currently own for resale. Cards added from the Card List Builder start with the recommended purchase price as cost basis and the recommended sale price as the target sale price; edit either field to reflect your actual numbers.</p>
+      </div>
+      <button id="clearInventoryBtn" class="ghost">Clear inventory</button>
+    </div>
+    <div id="inventoryStatus" class="inventoryStatus"></div>
+    <section id="inventorySummary" class="scanSummary inventorySummary"></section>
+    <section class="inventoryPanel">
+      <div id="inventoryRows" class="inventoryRows"></div>
     </section>
   </section>
 </main>
@@ -92,8 +109,9 @@
   </article>
 </template>
 
-<script src="config.js?v=16"></script>
-<script src="app.js?v=16"></script>
-<script src="manual-list.js?v=16"></script>
+<script src="config.js?v=17"></script>
+<script src="app.js?v=17"></script>
+<script src="manual-list.js?v=17"></script>
+<script src="inventory.js?v=17"></script>
 </body>
 </html>
