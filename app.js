@@ -12,6 +12,48 @@ function safeSet(k,v){try{localStorage.setItem(k,v)}catch{}}
 function safeRemove(k){try{localStorage.removeItem(k)}catch{}}
 try{imageCache=JSON.parse(safeGet(IMAGE_CACHE_KEY)||'{}')||{}}catch{imageCache={};safeRemove(IMAGE_CACHE_KEY)}
 
+
+const IMAGE_OVERRIDE_DB='pokemon-watchlist-images-v1';
+let overrideDBPromise=null;
+function overrideDB(){
+  if(!('indexedDB' in window))return Promise.reject(new Error('This browser cannot save image files.'));
+  if(!overrideDBPromise)overrideDBPromise=new Promise((resolve,reject)=>{
+    const r=indexedDB.open(IMAGE_OVERRIDE_DB,1);
+    r.onupgradeneeded=()=>r.result.createObjectStore('images');
+    r.onsuccess=()=>resolve(r.result);
+    r.onerror=()=>reject(r.error);
+  });
+  return overrideDBPromise;
+}
+async function getOverride(key){
+  const db=await overrideDB();
+  return new Promise((resolve,reject)=>{const t=db.transaction('images','readonly'),r=t.objectStore('images').get(key);r.onsuccess=()=>resolve(r.result||null);r.onerror=()=>reject(r.error)});
+}
+async function putOverride(key,file){
+  const db=await overrideDB();
+  return new Promise((resolve,reject)=>{const t=db.transaction('images','readwrite');t.objectStore('images').put(file,key);t.oncomplete=resolve;t.onerror=()=>reject(t.error)});
+}
+async function removeOverride(key){
+  const db=await overrideDB();
+  return new Promise((resolve,reject)=>{const t=db.transaction('images','readwrite');t.objectStore('images').delete(key);t.oncomplete=resolve;t.onerror=()=>reject(t.error)});
+}
+async function showOverride(img,ph,link,c){
+  try{
+    const file=await getOverride(imageKey(c));if(!file)return false;
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{};img.src=url;img.style.display='block';ph.classList.remove('visible');
+    link.href=url;link.style.display='inline';link.textContent='Open uploaded image';
+    return true;
+  }catch(e){console.warn('Could not read saved card image',e);return false}
+}
+async function uploadCardImage(file,c,img,ph,link,status){
+  if(!file)return;
+  if(!['image/png','image/jpeg','image/webp','image/gif'].includes(file.type)){status.textContent='Choose a PNG, JPG, WEBP or GIF image.';return}
+  if(file.size>8*1024*1024){status.textContent='Image must be 8 MB or smaller.';return}
+  try{await putOverride(imageKey(c),file);await showOverride(img,ph,link,c);status.textContent='Image saved on this device.'}
+  catch(e){status.textContent='Could not save the image. Check browser storage permissions.';console.error(e)}
+}
+
 function parsePriceBand(s){return s==='all'?[0,Infinity]:s.split('-').map(Number)}
 function validImage(u){return typeof u==='string'&&/^https:\/\/.+/i.test(u)}
 function localId(n){return String(n||'').split('/')[0].trim()}
@@ -40,7 +82,7 @@ async function resolveTcgdexImage(c,force=false){
 }
 
 async function hydrateImage(img,ph,link,c,force=false){
-  img.alt=`${c.card} ${c.number}`;const urls=[];const small=pokemonTcgSmall(c.image);if(validImage(small))urls.push(small);if(validImage(c.image)&&c.image!==small)urls.push(c.image);if(!force&&validImage(imageCache[imageKey(c)]))urls.push(imageCache[imageKey(c)]);
+  img.alt=`${c.card} ${c.number}`;if(await showOverride(img,ph,link,c))return;const urls=[];const small=pokemonTcgSmall(c.image);if(validImage(small))urls.push(small);if(validImage(c.image)&&c.image!==small)urls.push(c.image);if(!force&&validImage(imageCache[imageKey(c)]))urls.push(imageCache[imageKey(c)]);
   const probe=url=>new Promise(resolve=>{const im=new Image();im.onload=()=>resolve(url);im.onerror=()=>resolve('');im.src=force?`${url}${url.includes('?')?'&':'?'}_=${Date.now()}`:url});
   for(const url of [...new Set(urls)]){const ok=await probe(url);if(ok){img.src=ok;img.style.display='block';ph.classList.remove('visible');link.href=url;link.style.display='inline';return}}
   const fallback=await resolveTcgdexImage(c,force);if(fallback){const ok=await probe(fallback);if(ok){img.src=ok;img.style.display='block';ph.classList.remove('visible');link.href=fallback;link.style.display='inline';return}}
@@ -52,7 +94,7 @@ async function loadData(force=false){const base=(window.APP_CONFIG&&window.APP_C
 
 function filtered(){const q=(($('#search')&&$('#search').value)||'').trim().toLowerCase();const top=Number($('#topN')&&$('#topN').value)||100,[lo,hi]=parsePriceBand(STATE.price);let arr=DATA.filter(c=>Number(c.rank)<=top&&Number(c.market)>=lo&&Number(c.market)<=(hi===500?500:hi)&&(!q||`${c.card} ${c.set} ${c.number} ${c.rank}`.toLowerCase().includes(q)));const sort=$('#sort')&&$('#sort').value;arr.sort((a,b)=>sort==='roc'?Number(b.returnOnCost)-Number(a.returnOnCost):sort==='margin'?Number(b.margin)-Number(a.margin):sort==='marketAsc'?Number(a.market)-Number(b.market):sort==='marketDesc'?Number(b.market)-Number(a.market):Number(a.rank)-Number(b.rank));return arr}
 function renderSummary(arr){const avg=arr.length?arr.reduce((s,c)=>s+Number(c.returnOnCost||0),0)/arr.length:0;const buy=arr.reduce((s,c)=>s+Number(c.buy||0),0),resale=arr.reduce((s,c)=>s+Number(c.resale||0),0);const el=$('#summary');if(el)el.innerHTML=`<div class="stat"><span>Cards shown</span><b>${arr.length}</b></div><div class="stat"><span>Total target buy</span><b>${money(buy)}</b></div><div class="stat"><span>Total target resale</span><b>${money(resale)}</b></div><div class="stat"><span>Avg. return on cost</span><b>${pct(avg)}</b></div>`}
-function render(forceImages=false){const arr=filtered(),grid=$('#grid'),tpl=$('#cardTemplate');if(!grid||!tpl)throw new Error('Page template unavailable');grid.innerHTML='';renderSummary(arr);const empty=$('#empty');if(empty)empty.hidden=arr.length>0;const frag=document.createDocumentFragment(),pending=[];for(const c of arr){const node=tpl.content.firstElementChild.cloneNode(true);node.querySelector('.rank').textContent=`#${c.rank}`;node.querySelector('h2').textContent=c.card;node.querySelector('.meta').textContent=`${c.set} · ${c.number}`;node.querySelector('.rocBadge').textContent=`${pct(c.returnOnCost)} ROC`;node.querySelector('.market').textContent=money(c.market);node.querySelector('.buy').textContent=money(c.buy);node.querySelector('.resale').textContent=money(c.resale);node.querySelector('.margin').textContent=`Margin ${money(c.margin)}`;const img=node.querySelector('.cardimg'),ph=node.querySelector('.placeholder'),link=node.querySelector('.imageLink');img.style.display='none';ph.classList.add('visible');link.style.display='none';pending.push([img,ph,link,c,forceImages]);frag.appendChild(node)}grid.appendChild(frag);let i=0;const run=async()=>{while(i<pending.length){await hydrateImage(...pending[i++])}};for(let w=0;w<Math.min(6,pending.length);w++)run()}
+function render(forceImages=false){const arr=filtered(),grid=$('#grid'),tpl=$('#cardTemplate');if(!grid||!tpl)throw new Error('Page template unavailable');grid.innerHTML='';renderSummary(arr);const empty=$('#empty');if(empty)empty.hidden=arr.length>0;const frag=document.createDocumentFragment(),pending=[];for(const c of arr){const node=tpl.content.firstElementChild.cloneNode(true);node.querySelector('.rank').textContent=`#${c.rank}`;node.querySelector('h2').textContent=c.card;node.querySelector('.meta').textContent=`${c.set} · ${c.number}`;node.querySelector('.rocBadge').textContent=`${pct(c.returnOnCost)} ROC`;node.querySelector('.market').textContent=money(c.market);node.querySelector('.buy').textContent=money(c.buy);node.querySelector('.resale').textContent=money(c.resale);node.querySelector('.margin').textContent=`Margin ${money(c.margin)}`;const img=node.querySelector('.cardimg'),ph=node.querySelector('.placeholder'),link=node.querySelector('.imageLink');img.style.display='none';ph.classList.add('visible');link.style.display='none';const upload=node.querySelector('.imageUpload'),fileInput=node.querySelector('.imageFile'),status=node.querySelector('.imageStatus');upload.addEventListener('click',()=>fileInput.click());fileInput.addEventListener('change',async()=>{await uploadCardImage(fileInput.files?.[0],c,img,ph,link,status);fileInput.value=''});pending.push([img,ph,link,c,forceImages]);frag.appendChild(node)}grid.appendChild(frag);let i=0;const run=async()=>{while(i<pending.length){await hydrateImage(...pending[i++])}};for(let w=0;w<Math.min(6,pending.length);w++)run()}
 
 async function refreshAll(){const btn=$('#refreshBtn');if(!btn)return;btn.disabled=true;btn.textContent='Checking…';const lc=$('#lastChecked');if(lc)lc.textContent=' · Checking now…';try{imageCache={};safeRemove(IMAGE_CACHE_KEY);await loadData(true);btn.textContent='Checked ✓';setTimeout(()=>{btn.textContent='Check for updates';btn.disabled=false},1200)}catch{btn.textContent='Retry';btn.disabled=false}}
 
