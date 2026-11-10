@@ -46,8 +46,8 @@ async function mlList(q){const r=await fetch(`https://api.tcgdex.net/v2/en/cards
 async function mlDetail(id){const r=await fetch(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(id)}`,{cache:'no-store'});if(!r.ok)throw new Error('Card lookup failed');return r.json()}
 function mlParseQuery(q){
   const raw=String(q||'').trim();
-  const match=raw.match(/\\b([A-Z]{0,4}\\d{1,4})\\s*\\/\\s*(\\d{1,4})\\b/i);
-  const name=raw.replace(/\\b[A-Z]{0,4}\\d{1,4}\\s*\\/\\s*\\d{1,4}\\b/ig,' ').replace(/\\s+/g,' ').trim();
+  const match=raw.match(/([A-Z]{0,4}[0-9]{1,4})[ ]*\/[ ]*([0-9]{1,4})/i);
+  const name=match?raw.replace(match[0],' ').trim().replace(/ +/g,' '):raw;
   return {name:name||raw,number:match?match[1].toUpperCase():'',total:match?Number(match[2]):null};
 }
 function mlScore(d,q){
@@ -74,7 +74,7 @@ function mlQueries(q,level=0){
   const parsed=mlParseQuery(q);
   const out=[parsed.name];
   if(level>0){
-    const tokens=parsed.name.split(/\\s+/).filter(Boolean);
+    const tokens=parsed.name.split(/ +/).filter(Boolean);
     if(tokens.length>1)out.push(tokens.slice(0,Math.min(3,tokens.length)).join(' '));
     if(tokens.length)out.push(tokens[0]);
   }
@@ -93,14 +93,14 @@ async function mlCollect(q,level=0){
   const candidates=parsed.number
     ?briefs.filter(b=>norm(b.localId||'')===norm(parsed.number))
     :briefs;
-  const limit=level>0?120:80,scored=[];
+  const limit=level>0?160:140,scored=[];
   for(const brief of candidates.slice(0,limit)){
     try{
       const d=await mlDetail(brief.id);
       if(parsed.number){
         const total=Number(d.set?.cardCount?.official);
         if(norm(d.localId||'')!==norm(parsed.number))continue;
-        if(total>0&&total!==parsed.total)continue;
+        // Denominator is a ranking hint, not an exclusion: databases vary in card-count definitions.
       }
       scored.push({detail:d,score:mlScore(d,q)});
     }catch{}
