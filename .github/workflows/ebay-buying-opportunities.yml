@@ -1,10 +1,8 @@
 name: eBay buying opportunity refresh
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '17 14,20 * * *'
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: ebay-buying-refresh
   cancel-in-progress: false
@@ -16,19 +14,29 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Retrieve listings from official eBay Browse API
+      - name: Check eBay Production authentication and Browse access
         env:
           EBAY_CLIENT_ID: ${{ secrets.EBAY_CLIENT_ID }}
           EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
-          EBAY_SCAN_CARD_LIMIT: '25'
-          EBAY_RESULTS_PER_CARD: '15'
-        run: python scripts/ebay_browse_feed.py
-      - name: Publish updated feed
         run: |
-          if ! git diff --quiet -- ebay-listings.json; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add ebay-listings.json
-            git commit -m "Refresh eBay active buying listings"
-            git push
-          fi
+          python - <<'PY'
+          import sys
+          from urllib.error import HTTPError
+
+          from scripts.ebay_browse_feed import search, token
+
+          def check(stage, action):
+              try:
+                  return action()
+              except Exception as error:
+                  cause = error.__cause__
+                  detail = f"HTTP {cause.code}" if isinstance(cause, HTTPError) else type(error).__name__
+                  sys.exit(f"{stage} failed ({detail}).")
+
+          access_token = check("Production authentication", token)
+          print("Production authentication succeeded.")
+          check("Browse search", lambda: search({
+              "card": "Charizard ex", "number": "199/165", "set": "Scarlet Violet 151"
+          }, access_token))
+          print("Browse search succeeded. Listing results were discarded.")
+          PY
